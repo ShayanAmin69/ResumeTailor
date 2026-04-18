@@ -1,0 +1,304 @@
+{
+  "name": "ResumeTailor",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Upload Resume",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Job Description",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Base Resume",
+              "fieldType": "textarea"
+            },
+            {
+              "fieldLabel": "Base Cover Letter",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "5773513c-47c2-4b9e-876c-fe1da1ffb573",
+      "name": "On form submission",
+      "webhookId": "a933b4a9-249d-462f-9317-9947c41192da"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        256,
+        208
+      ],
+      "id": "1e23d20e-33fb-4d6e-8c07-31efa2d00545",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "E9hRotpsyzVyLfdb",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert executive resume writer and career coach. I am going to give you my current resume with all projects I have made, my current cover letter, and a job description I want to apply for. Your task is to completely rewrite my resume in latex (make sure it is compilable through texlive 2016 and dont use fontawesome5) and cover letter in plain text so that my experience perfectly aligns with the job description. Add a professional summary in start according to the job i am applying for. Use only the projects you think are best for the job and reorder them accordingly. The resume should occupy only one page . Highlight the skills that match the job requirements. \nJob Description: {{ $json['Job Description'] }}\nMy Current Resume:  {{ $json['Base Resume'] }}\nMy Current Cover Letter:{{ $json['Base Cover Letter'] }} \nPlease output the rewritten Resume first, followed by the rewritten Cover Letter.You must output your response strictly matching the requested JSON schema. Do not include markdown formatting, backticks, or conversational text. ",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        256,
+        0
+      ],
+      "id": "4eaafd64-2baf-48cb-bd95-8b884208fdeb",
+      "name": "Resume Generator"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"cv_latex\": \"Your LaTeX code goes here\",\n  \"cover_letter\": \"Your plain text cover letter goes here\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        400,
+        208
+      ],
+      "id": "095e7d84-e102-46f0-9b56-5de3fdde4aa8",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.advicement.io/v1/templates/pub-tex-to-pdf-with-pdflatex-v1/compile",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Adv-Security-Token",
+              "value": "3a1664d5400eb20dbf587996debf72ebaa9b32c2618bc3c2ad09d7517d8474e6"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"texFileContent\": {{ JSON.stringify($json.output.cv_latex) }},\n  \"documentSettings\": {\n    \"doc-file-name\": \"MyResume\"\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        608,
+        0
+      ],
+      "id": "319c12bf-b336-4d2c-9f31-c0d3de5c5132",
+      "name": "Send Latex"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        0
+      ],
+      "id": "b470dc00-503e-464a-8ab2-5ec5ba683b4e",
+      "name": "Wait for Compilation",
+      "webhookId": "63073e87-7364-46fd-838d-d8f260c73fb3"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.documentStatusUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Adv-Security-Token",
+              "value": "3a1664d5400eb20dbf587996debf72ebaa9b32c2618bc3c2ad09d7517d8474e6"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        976,
+        0
+      ],
+      "id": "c6243ed9-16dc-49c0-ba09-cb1d1800d4bf",
+      "name": "Get PDF Link"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.documentUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Adv-Security-Token",
+              "value": "3a1664d5400eb20dbf587996debf72ebaa9b32c2618bc3c2ad09d7517d8474e6"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "9e01060b-4eb8-4921-af46-08def72f1d6d",
+      "name": "Download PDF"
+    },
+    {
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "output.cover_letter",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        608,
+        224
+      ],
+      "id": "e827b3ed-bcdd-4500-b9ec-168491a7aeb9",
+      "name": "Convert to Cover Letter to File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Resume Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Resume Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Generator": {
+      "main": [
+        [
+          {
+            "node": "Convert to Cover Letter to File",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Latex",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Resume Generator",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Latex": {
+      "main": [
+        [
+          {
+            "node": "Wait for Compilation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Compilation": {
+      "main": [
+        [
+          {
+            "node": "Get PDF Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get PDF Link": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Cover Letter to File": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2c89c97a-5fd8-476c-b9a0-52d8ab77a070",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dfed409096754946bf055ca5683949fcf266bba5ee9eed80b5f41319370e1cb1"
+  },
+  "id": "NEBDP9OS3xCgbVlf",
+  "tags": []
+}
